@@ -1,0 +1,18 @@
+[Unit]
+Description=MiFlora on-demand battery reader (canopy/cmd/battery)
+After=network-online.target bluetooth.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/miflora_battery_listener.sh
+# Root so gatttool needs no sudo, same as the cron job.
+User=root
+# The broker or the gateway can be down at boot; just keep trying.
+Restart=always
+RestartSec=30
+StandardOutput=append:/var/log/miflora-battery.log
+StandardError=append:/var/log/miflora-battery.log
+
+[Install]
+WantedBy=multi-user.target

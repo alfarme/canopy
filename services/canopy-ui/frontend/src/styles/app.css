@@ -1,0 +1,484 @@
+/* Canopy — app styles. Tokens live in tokens.css. */
+
+#root { padding: 0 clamp(16px, 3vw, 40px) 48px; }
+
+/* ---------- header ---------- */
+.topbar {
+  display: flex; align-items: baseline; gap: 18px;
+  padding: 26px 2px 22px;
+}
+.wordmark {
+  font: 500 30px/1 var(--font-display);
+  letter-spacing: 0.01em;
+}
+.topbar .meta {
+  font: 500 11px var(--font-ui); text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--ink-soft);
+}
+.topbar .spacer { flex: 1; }
+.theme-toggle {
+  font: 500 12px var(--font-ui); letter-spacing: 0.03em;
+  color: var(--ink-soft); background: var(--surface-1);
+  border: 1px solid var(--track); border-radius: var(--r-pill);
+  padding: 7px 14px; cursor: pointer;
+  transition: color var(--dur-quick) var(--ease);
+}
+.theme-toggle:hover { color: var(--ink); }
+
+/* ---------- grid ---------- */
+.grid {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 190px;
+  grid-auto-flow: dense;
+}
+.tile { grid-column: span 1; grid-row: span 1; }
+.tile.featured { grid-column: span 2; grid-row: span 2; }
+.tile.tall { grid-row: span 2; }
+.tile.wide { grid-column: span 2; }
+
+@media (max-width: 1100px) {
+  .grid { grid-template-columns: repeat(3, 1fr); grid-auto-rows: 200px; }
+  .tile.featured { grid-column: span 2; grid-row: span 2; }
+  .tile.wide { grid-column: span 2; }
+}
+
+/* Alerts board: wall-tablet kiosk, always 4/row with landscape tiles
+   (user tested 3/4 x landscape/portrait variants on the actual tablet and
+   picked this one). Aspect-ratio replaces the
+   fixed grid-auto-rows so tile height follows column width instead of a
+   flat 190/200px, which is what makes the tiles read as landscape. Beats
+   the 1100px breakpoint above by appearing later in the cascade. */
+.alerts-grid {
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: auto;
+}
+.alerts-grid .tile { aspect-ratio: 4 / 3; }
+@media (max-width: 1100px) {
+  .alerts-grid { grid-template-columns: repeat(4, 1fr); grid-auto-rows: auto; }
+}
+@media (max-width: 700px) {
+  .grid { grid-template-columns: 1fr; grid-auto-rows: 210px; }
+  .tile, .tile.featured, .tile.wide, .tile.tall { grid-column: span 1; grid-row: span 1; }
+  .tile.featured { grid-row: span 2; }
+}
+
+.grid-empty {
+  grid-column: 1 / -1; padding: 60px 0; text-align: center;
+  font: italic 400 18px var(--font-display); color: var(--ink-soft);
+}
+
+/* ---------- controls row (tabs · alerts · refresh) ---------- */
+.controls { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
+.controls .spacer { flex: 1; }
+html[data-ui="zen"] .controls { display: none; }
+
+.loc-tabs { display: none; gap: 6px; flex-wrap: wrap; }
+.loc-tabs .tab {
+  font: 500 12px var(--font-ui); letter-spacing: 0.03em;
+  color: var(--ink-soft); background: var(--surface-1);
+  border: 1px solid var(--track); border-radius: var(--r-pill);
+  padding: 7px 14px; cursor: pointer;
+  transition: color var(--dur-quick) var(--ease), background var(--dur-quick) var(--ease);
+}
+.loc-tabs .tab.active { color: var(--dot-ring); background: var(--accent); border-color: var(--accent); }
+
+.alerts-btn {
+  font: 500 12px var(--font-ui); letter-spacing: 0.03em;
+  color: var(--ink-soft); background: var(--surface-1);
+  border: 1px solid var(--track); border-radius: var(--r-pill);
+  padding: 7px 14px; cursor: pointer; text-decoration: none;
+  transition: color var(--dur-quick) var(--ease);
+}
+.alerts-btn:hover { color: var(--ink); }
+.alerts-btn.has-alerts { color: var(--warn); border-color: var(--warn); }
+
+.autoscroll-btn {
+  font: 500 12px var(--font-ui); letter-spacing: 0.03em;
+  color: var(--ink-soft); background: var(--surface-1);
+  border: 1px solid var(--track); border-radius: var(--r-pill);
+  padding: 7px 14px; cursor: pointer;
+  transition: color var(--dur-quick) var(--ease), background var(--dur-quick) var(--ease);
+}
+.autoscroll-btn.active { color: var(--dot-ring); background: var(--accent); border-color: var(--accent); }
+
+.refresh-picker {
+  display: inline-flex; align-items: center; gap: 7px;
+  font: 500 11px var(--font-ui); text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--ink-faint);
+}
+.refresh-picker select {
+  font: 500 12px var(--font-ui); color: var(--ink-soft);
+  background: var(--surface-1); border: 1px solid var(--track);
+  border-radius: var(--r-pill); padding: 6px 10px; cursor: pointer;
+}
+
+/* ---------- location groups ---------- */
+.loc-group {
+  background: color-mix(in srgb, var(--surface-1) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--track) 55%, transparent);
+  border-radius: var(--r-l);
+  padding: 16px 16px 18px; margin-bottom: 20px;
+}
+.loc-title {
+  font: 500 21px/1 var(--font-display); color: var(--ink-soft);
+  margin: 2px 4px 14px;
+}
+
+/* mobile/tablet: tabs switch between groups instead of stacking them */
+@media (max-width: 1100px) {
+  .loc-tabs { display: flex; }
+  .loc-group:not(.active) { display: none; }
+  .loc-group { background: none; border: none; padding: 0; }
+  .loc-title { display: none; }
+  /* zen hides the tabs — show every group (with titles back) so a kiosk
+     phone/tablet isn't stuck on a single room */
+  html[data-ui="zen"] .loc-group:not(.active) { display: block; }
+  html[data-ui="zen"] .loc-group { margin-bottom: 26px; }
+  html[data-ui="zen"] .loc-title { display: block; }
+  /* "All" tab: every group already stays visible via .active (all-rooms
+     marks every group active) — just bring titles/spacing back so rooms
+     read as distinct sections instead of one merged grid. */
+  .all-rooms .loc-group { margin-bottom: 26px; }
+  .all-rooms .loc-title { display: block; }
+}
+
+/* ---------- tile ---------- */
+.tile {
+  container-type: size;
+  position: relative; border-radius: var(--r-l); overflow: hidden;
+  background: var(--surface-1); box-shadow: var(--shadow-lift);
+  cursor: pointer; text-decoration: none; color: inherit; display: block;
+  transition: transform var(--dur-quick) var(--ease), box-shadow var(--dur-quick) var(--ease);
+}
+.tile:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift-hover); }
+.tile .photo {
+  position: absolute; inset: 0;
+  background-image: var(--photo-p);
+  background-size: cover; background-position: center 40%;
+  filter: var(--photo-treat);
+  transition: filter var(--dur-quick) var(--ease);
+}
+/* flat surfaces must not inherit the photo grade (brightness would clip
+   the beige, hue-rotate would tint it) */
+.tile.no-photo .photo, .tile.skeleton .photo { filter: none; }
+.tile.featured .photo, .tile.wide .photo {
+  background-image: var(--photo-w, var(--photo-p));
+  background-position: center;
+}
+@media (max-width: 700px) {
+  .tile.featured .photo, .tile.wide .photo {
+    background-image: var(--photo-p);
+    background-position: center 40%;
+  }
+}
+.tile:hover .photo { filter: var(--photo-treat) brightness(1.04); }
+.tile .scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, var(--scrim-hi), var(--scrim-mid) 42%, transparent 60%);
+}
+.tile.attention::after {
+  content: ""; position: absolute; inset: 0; border-radius: var(--r-l);
+  box-shadow: inset 0 0 0 2px var(--warn); pointer-events: none;
+}
+/* alerts board: severity recolors + slightly widens the frame (after the
+   .attention rule so it wins the tie) */
+.tile.sev-1::after, .tile.sev-2::after, .tile.sev-3::after {
+  content: ""; position: absolute; inset: 0; border-radius: var(--r-l);
+  pointer-events: none;
+}
+.tile.sev-1::after { box-shadow: inset 0 0 0 3px var(--sev-1); }
+.tile.sev-2::after { box-shadow: inset 0 0 0 3px var(--sev-2); }
+.tile.sev-3::after { box-shadow: inset 0 0 0 3px var(--sev-3); }
+.tile .caption {
+  position: absolute; left: 18px; right: 16px; bottom: 14px;
+  color: var(--tile-caption-ink); text-shadow: 0 1px 6px rgba(20, 14, 5, 0.45);
+}
+.tile .name { font: 500 26px/1.05 var(--font-display); }
+.tile .loc {
+  font: 500 10px var(--font-ui); text-transform: uppercase;
+  letter-spacing: 0.08em; opacity: 0.85; margin-top: 3px;
+}
+.tile.featured .name { font-size: 34px; }
+
+/* tile mini-metrics (hidden on small tiles via container query) */
+.tile .minis { margin-top: 10px; display: grid; gap: 7px; max-width: 280px; }
+.mini { display: flex; align-items: center; gap: 8px; }
+.mini .m-label {
+  font: 500 9px var(--font-ui); text-transform: uppercase; letter-spacing: 0.07em;
+  opacity: 0.8; width: 62px; flex: none;
+}
+.mini .m-track {
+  position: relative; height: 4px; border-radius: 2px; flex: 1;
+  background: rgba(251, 246, 234, 0.28);
+}
+.mini .m-range { position: absolute; top: 0; bottom: 0; border-radius: 2px; background: rgba(251, 246, 234, 0.38); }
+.mini .m-dot {
+  position: absolute; top: -3px; width: 10px; height: 10px; border-radius: 50%;
+  background: #8fbf7f; border: 2px solid rgba(20, 14, 5, 0.4); transform: translateX(-50%);
+}
+.mini .m-dot.oor { background: #e8825c; }
+.mini .m-word { font: 500 9px var(--font-ui); letter-spacing: 0.04em; color: #f0b396; flex: none; }
+.tile .status-line { font: 500 10px var(--font-ui); letter-spacing: 0.05em; margin-top: 6px; opacity: 0.9; display: none; }
+.tile .status-line .oor-word { color: #f0b396; }
+
+/* Only truly cramped tiles drop the bars for the one-line status; the
+   standard 190px row fits two minis fine (user request 2026-07-23). */
+@container (max-height: 145px) {
+  .tile .minis { display: none; }
+  .tile .status-line { display: block; }
+}
+@container (max-width: 210px) {
+  .tile .minis { display: none; }
+  .tile .status-line { display: block; }
+}
+
+/* duo featured tile: two plants share one blur canvas, one caption per half */
+.tile.duo .halves { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 1fr; }
+.tile.duo .half { position: relative; display: block; color: inherit; text-decoration: none; }
+.tile.duo .minis { max-width: 240px; }
+.tile.duo .name { font-size: 28px; }
+@media (max-width: 700px) {
+  /* phone: the wide duo image would crop badly in a ~square tile —
+     each half renders its own portrait crop instead. The photo lives on a
+     ::before layer so the theme grade (filter) doesn't wash the caption. */
+  .tile.duo .photo { display: none; }
+  .tile.duo .half::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: var(--photo-p);
+    background-size: cover; background-position: center 40%;
+    filter: var(--photo-treat);
+  }
+  .tile.duo .half::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(to top, var(--scrim-hi), var(--scrim-mid) 42%, transparent 60%);
+  }
+  .tile.duo .half .caption { z-index: 1; }
+  .tile.duo .name { font-size: 22px; }
+  /* half-width columns are too narrow for bars — fall back to the word */
+  .tile.duo .minis { display: none; }
+  .tile.duo .status-line { display: block; }
+}
+
+/* missing-photo tile */
+.tile.no-photo .photo {
+  background: var(--surface-1);
+  display: flex; align-items: center; justify-content: center;
+}
+.tile.no-photo .scrim { display: none; }
+.tile.no-photo .leafmark {
+  position: absolute; left: 0; right: 0; top: 12%; height: 45%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--range-band);
+}
+.tile.no-photo .caption { color: var(--ink); text-shadow: none; }
+.tile.no-photo .loc { color: var(--ink-soft); }
+.tile.no-photo .m-track { background: var(--track); }
+.tile.no-photo .m-range { background: var(--range-band); }
+.tile.no-photo .m-dot { border-color: var(--dot-ring); background: var(--accent); }
+.tile.no-photo .m-label { color: var(--ink-soft); }
+.tile.no-photo .add-hint {
+  font: 500 10px var(--font-ui); letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--ink-faint); margin-top: 6px;
+}
+
+/* loading skeleton */
+.tile.skeleton .photo { background: linear-gradient(100deg, var(--surface-1) 40%, var(--track) 50%, var(--surface-1) 60%); background-size: 300% 100%; animation: shimmer 1.4s infinite; }
+.tile.skeleton .scrim, .tile.skeleton .caption { display: none; }
+@keyframes shimmer { to { background-position: -150% 0; } }
+
+/* ---------- detail view ---------- */
+.detail-wrap { position: relative; }
+.detail {
+  position: relative; border-radius: var(--r-l); overflow: hidden;
+  /* pan-y: vertical page scroll stays native, but the browser's own
+     pinch-zoom is suppressed here so the pinch-to-close gesture gets
+     both pointers. Page zoom elsewhere is unaffected (a11y). */
+  touch-action: pan-y;
+  height: min(78vh, 720px); min-height: 480px;
+  background-size: cover; background-position: center;
+  box-shadow: var(--shadow-lift);
+}
+.detail.no-photo { background: var(--surface-1); }
+.detail.no-photo .leafmark {
+  position: absolute; left: 0; right: 0; top: 18%; height: 40%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--range-band);
+}
+.detail.no-photo .caption { color: var(--ink); text-shadow: none; }
+.detail .caption {
+  position: absolute; left: 34px; bottom: 28px;
+  color: #fbf6ea; text-shadow: 0 1px 8px rgba(20, 14, 5, 0.55);
+}
+.detail .name { font: 500 44px/1 var(--font-display); }
+.detail .species { font: italic 400 17px var(--font-display); opacity: 0.9; margin-top: 5px; }
+.detail .loc {
+  font: 500 11px var(--font-ui); text-transform: uppercase;
+  letter-spacing: 0.08em; opacity: 0.85; margin-top: 6px;
+}
+.photo-btn {
+  position: absolute; left: 34px; top: 26px;
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(20, 14, 5, 0.45); color: #fbf6ea;
+  border: none; border-radius: var(--r-pill); padding: 9px 15px;
+  font: 500 12px var(--font-ui); letter-spacing: 0.03em;
+  backdrop-filter: blur(4px); cursor: pointer;
+}
+.photo-btn:disabled { opacity: 0.6; cursor: default; }
+.upload-error {
+  position: absolute; left: 34px; top: 68px;
+  background: rgba(20, 14, 5, 0.6); color: #f0b396;
+  border-radius: var(--r-m); padding: 6px 10px;
+  font: 500 11px var(--font-ui);
+}
+.back-btn {
+  position: absolute; right: 34px; bottom: 28px;
+  background: rgba(20, 14, 5, 0.45); color: #fbf6ea;
+  border: none; border-radius: var(--r-pill); padding: 9px 15px;
+  font: 500 12px var(--font-ui); backdrop-filter: blur(4px); cursor: pointer;
+}
+.panel {
+  position: absolute; right: 26px; top: 26px; width: 400px;
+  max-height: calc(100% - 52px);
+  background: var(--surface-veil); border-radius: var(--r-l);
+  padding: 32px 36px; overflow-y: auto;
+  box-shadow: var(--accent-glow);
+}
+.panel .no-metrics {
+  font: italic 400 15px var(--font-display); color: var(--ink-soft);
+}
+
+/* measurement primitive (full-size, panel scale) */
+.m-row { margin-bottom: 26px; }
+.m-row:last-child { margin-bottom: 0; }
+.m-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 9px; }
+.m-name { font: 500 13px var(--font-ui); text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-soft); }
+.m-val { font: 500 26px var(--font-display); color: var(--ink); }
+.m-val small { font: 500 12px var(--font-ui); color: var(--ink-faint); margin-left: 3px; }
+.panel .m-track { position: relative; height: 7px; border-radius: 3.5px; background: var(--track); }
+.panel .m-range { position: absolute; top: 0; bottom: 0; background: var(--range-band); border-radius: 3.5px; }
+.panel .m-dot {
+  position: absolute; top: -4.5px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent); border: 2.5px solid var(--dot-ring);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); transform: translateX(-50%);
+}
+.panel .m-dot.oor { background: var(--warn); }
+.m-minmax { display: flex; justify-content: space-between; margin-top: 6px; font: 500 11px var(--font-ui); color: var(--ink-faint); }
+.m-minmax .oor-word { color: var(--warn); }
+.m-spark { height: 32px; margin-top: 8px; display: block; width: 100%; }
+.m-spark path { stroke: var(--accent); }
+
+/* detail loading / error */
+.detail-status {
+  padding: 80px 0; text-align: center;
+  font: italic 400 18px var(--font-display); color: var(--ink-soft);
+}
+
+/* detail on phone: photo top, panel below */
+@media (max-width: 700px) {
+  .detail { height: 46vh; min-height: 320px; border-radius: var(--r-l) var(--r-l) 0 0; }
+  .detail .caption { left: 20px; bottom: 18px; }
+  .detail .name { font-size: 32px; }
+  .photo-btn { left: 20px; top: 16px; }
+  .upload-error { left: 20px; top: 58px; }
+  .back-btn { right: 20px; bottom: 18px; }
+  .panel {
+    position: static; width: auto; margin-top: 0;
+    border-radius: 0 0 var(--r-l) var(--r-l);
+  }
+}
+
+/* ─── Edit modal ────────────────────────────────────────────────────────── */
+.modal-veil {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(20, 14, 5, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal {
+  width: min(440px, 100%); max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  background: var(--surface-1); border-radius: var(--r-l);
+  box-shadow: var(--shadow-lift-hover);
+  padding: 26px 28px 28px;
+}
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 18px;
+}
+.modal-head h2 { font: 500 24px var(--font-display); color: var(--ink); margin: 0; }
+.modal-close {
+  background: none; border: none; color: var(--ink-soft);
+  font-size: 22px; line-height: 1; cursor: pointer; padding: 4px;
+}
+.modal-body { display: flex; flex-direction: column; gap: 18px; }
+.edit-field { display: flex; flex-direction: column; gap: 6px; }
+.edit-field label {
+  font: 500 11px var(--font-ui); text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--ink-soft);
+}
+.edit-field input[type="text"],
+.edit-field input[type="number"],
+.edit-field select {
+  font: 500 14px var(--font-ui); color: var(--ink);
+  background: var(--surface-0); border: 1px solid var(--track);
+  border-radius: var(--r-m); padding: 9px 11px;
+}
+.edit-hint { font: italic 400 13px var(--font-display); color: var(--ink-faint); }
+.edit-photo { align-items: flex-start; }
+.edit-photo img {
+  width: 100%; max-width: 220px; aspect-ratio: 3 / 4; object-fit: cover;
+  border-radius: var(--r-m); box-shadow: var(--shadow-lift);
+}
+.edit-photo-btn {
+  font: 500 12px var(--font-ui); color: var(--accent);
+  cursor: pointer; text-decoration: underline; margin-top: 8px;
+}
+.edit-thresholds { gap: 8px; }
+.edit-threshold-row {
+  display: grid; grid-template-columns: 1fr 72px 72px; gap: 8px; align-items: center;
+}
+.edit-threshold-row span { font: 500 13px var(--font-ui); color: var(--ink); }
+.edit-error {
+  font: 500 12px var(--font-ui); color: var(--warn);
+  background: rgba(181, 80, 46, 0.12); border-radius: var(--r-m); padding: 8px 11px;
+}
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.modal-actions .primary,
+.modal-actions .secondary,
+.photo-editor-row .primary,
+.photo-editor-row .secondary {
+  border: none; border-radius: var(--r-pill); padding: 10px 18px;
+  font: 500 13px var(--font-ui); cursor: pointer;
+}
+.modal-actions .primary,
+.photo-editor-row .primary { background: var(--accent); color: var(--tile-caption-ink); }
+.modal-actions .secondary,
+.photo-editor-row .secondary { background: var(--surface-0); color: var(--ink-soft); }
+.modal-actions button:disabled { opacity: 0.6; cursor: default; }
+
+/* Photo editor (rotate/crop before upload) */
+.photo-editor { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.photo-editor-canvas-wrap {
+  border-radius: var(--r-m); overflow: hidden; box-shadow: var(--shadow-lift);
+  touch-action: none;
+}
+.photo-editor-canvas-wrap canvas { display: block; cursor: grab; touch-action: none; }
+.photo-editor-controls { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+.photo-editor-row { display: flex; justify-content: center; gap: 10px; }
+.photo-editor-row button:not(.primary):not(.secondary) {
+  background: var(--surface-0); color: var(--ink);
+  border: 1px solid var(--track); border-radius: var(--r-pill);
+  padding: 8px 14px; font: 500 12px var(--font-ui); cursor: pointer;
+}
+.photo-editor-zoom {
+  display: flex; align-items: center; gap: 10px;
+  font: 500 11px var(--font-ui); text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--ink-soft);
+}
+.photo-editor-zoom input[type="range"] { flex: 1; }
+
+@media (max-width: 700px) {
+  .modal { padding: 20px; }
+  .edit-threshold-row { grid-template-columns: 1fr 64px 64px; }
+}

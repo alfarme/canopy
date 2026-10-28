@@ -1,0 +1,24 @@
+# Grafana datasource provisioning — TimescaleDB (PostgreSQL)
+# Env-var substitution: verified against grafana.com/docs/grafana/latest/datasources/postgres/configure/ —
+# the supported syntax is $__env{VAR_NAME}, and the "database" field must live under jsonData
+# (a top-level "database" key is legacy/unreliable for the query-builder path — see grafana/grafana#65105).
+# The orchestrator supplies GF_TS_PASSWORD via env_file on the compose grafana service.
+
+apiVersion: 1
+
+datasources:
+  - name: TimescaleDB
+    type: postgres
+    uid: canopy_tsdb
+    access: proxy
+    isDefault: true
+    url: cp-db:5432
+    user: canopy
+    jsonData:
+      database: canopy
+      sslmode: disable
+      timescaledb: true
+    secureJsonData:
+      password: $__env{GF_TS_PASSWORD}
+    version: 1
+    editable: true

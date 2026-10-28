@@ -1,0 +1,7 @@
+.env
+.remember/
+__pycache__/
+*.pyc
+deploy-history/
+.vite/
+.venv/

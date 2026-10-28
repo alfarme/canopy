@@ -1,0 +1,142 @@
+# Canopy stack — single Raspberry Pi (arm64), plain Docker Compose.
+# Deploy: ./deploy.sh (docker compose build && docker compose up -d). See docs/technical.md.
+# All persistent state lives under $DATA_DIR (see .env.example): pgdata, backups,
+# mosquitto/{config,data,log}, grafana, identify-photos, canopy-cache, env/*.env.
+# Backups: tools/backup_db.sh via a daily host crontab entry (pg_dump -Fc into
+# $DATA_DIR/backups, 14-day retention).
+name: canopy
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0.22
+    container_name: cp-mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ${DATA_DIR}/mosquitto/config:/mosquitto/config
+      - ${DATA_DIR}/mosquitto/data:/mosquitto/data
+      - ${DATA_DIR}/mosquitto/log:/mosquitto/log
+
+  timescaledb:
+    image: timescale/timescaledb:2.28.2-pg17
+    container_name: cp-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: canopy
+      POSTGRES_DB: canopy
+      TS_TUNE_MEMORY: 4GB
+      TS_TUNE_NUM_CPUS: "2"
+    env_file: ${DATA_DIR}/env/timescaledb.env
+    volumes:
+      - ${DATA_DIR}/pgdata:/var/lib/postgresql/data
+      - ${DATA_DIR}/backups:/backups
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U canopy -d canopy"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  theengs:
+    image: theengs/gateway:v1.7.5.1
+    container_name: cp-theengs
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    volumes:
+      - /var/run/dbus:/var/run/dbus
+    environment:
+      # Env var names per gateway.theengs.io/install/docker/ (verified against
+      # the v1.7.5.1 image) — MQTT_PORT is not a supported env var (no docker
+      # CLI equivalent to -P/--port), so this stack relies on Mosquitto's
+      # default 1883.
+      MQTT_HOST: ${MQTT_HOST:-127.0.0.1}
+      MQTT_PUBLISH_TOPIC: canopy/ble
+      SCANNING_MODE: passive
+      BLE_SCAN_TIME: ${BLE_SCAN_TIME:-10}
+      BLE_TIME_BETWEEN_SCANS: ${BLE_TIME_BETWEEN_SCANS:-50}
+    depends_on:
+      mosquitto:
+        condition: service_started
+
+  ingest:
+    build: ../services/ingest
+    container_name: cp-ingest
+    restart: unless-stopped
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    env_file: ${DATA_DIR}/env/ingest.env
+
+  decision-engine:
+    build: ../services/decision-engine
+    container_name: cp-decision
+    restart: unless-stopped
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    env_file: ${DATA_DIR}/env/decision.env
+
+  telegram-bot:
+    build: ../services/telegram-bot
+    container_name: cp-telegram
+    restart: unless-stopped
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    # Run as the deploying host user (see grafana below): the bind-mounted
+    # identify-photos tree is created by install.sh as that user, and the
+    # image's own unpinned `appuser` uid would not own it.
+    user: "${HOST_UID:-999}:${HOST_GID:-999}"
+    env_file: ${DATA_DIR}/env/telegram.env
+    environment:
+      # Alert cards are rendered by canopy-ui and uploaded by the bot (canopy-ui is
+      # not reachable from Telegram's servers). ALERT_CARDS=0 → text-only.
+      CANOPY_UI_URL: http://canopy-ui:8080
+    volumes:
+      - ${DATA_DIR}/identify-photos:/data/identify-photos
+
+  canopy-ui:
+    build: ../services/canopy-ui
+    container_name: cp-canopy-ui
+    restart: unless-stopped
+    # Same host uid as telegram-bot: both write the shared identify-photos
+    # tree (canopy-ui's upload endpoint, the bot's photo downloads), so they
+    # must agree on an owner -- the deploying host user, who created it.
+    user: "${HOST_UID:-999}:${HOST_GID:-999}"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    ports:
+      - "${CANOPY_UI_PORT:-8090}:8080"
+    env_file: ${DATA_DIR}/env/canopy-ui.env
+    volumes:
+      # RW: the dashboard's photo upload writes here (same tree the bot uses)
+      - ${DATA_DIR}/identify-photos:/data/photos
+      # derivative cache — persistent, generated on demand, safe to wipe
+      - ${DATA_DIR}/canopy-cache:/data/photo-cache
+
+  grafana:
+    image: grafana/grafana-oss:12.4.3
+    container_name: cp-grafana
+    restart: unless-stopped
+    # Grafana's image defaults to uid 472, which won't own a host-bind-mounted
+    # $DATA_DIR/grafana created by install.sh as the deploying user — and a
+    # non-root user can't chown a directory to an arbitrary uid to fix that.
+    # Run Grafana as the host user instead (install.sh writes HOST_UID/HOST_GID
+    # into .env); falls back to the image's own default if unset (e.g. a manual
+    # `docker compose up` without install.sh, where you chown $DATA_DIR/grafana
+    # to 472:472 yourself instead).
+    user: "${HOST_UID:-472}:${HOST_GID:-472}"
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    env_file: ${DATA_DIR}/env/grafana.env
+    volumes:
+      - ${DATA_DIR}/grafana:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro

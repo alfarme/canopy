@@ -1,0 +1,21 @@
+# Grafana dashboard provider provisioning
+# Tells Grafana where to find dashboard JSON files on disk.
+
+apiVersion: 1
+
+providers:
+  - name: canopy
+    orgId: 1
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    # true = dashboard is editable in the UI and saves persist to Grafana's DB
+    # (on the persisted grafana bind mount). Provisioning only re-applies the
+    # JSON file if the file version is newer — so a redeploy that changes
+    # canopy.json WILL overwrite UI edits. Run ../../export-dashboard.sh
+    # BEFORE editing canopy.json to pull live UI edits back into git first.
+    allowUiUpdates: true
+    options:
+      # Path inside the container — matches the compose volume mount:
+      # ./compose/grafana/provisioning -> /etc/grafana/provisioning:ro
+      path: /etc/grafana/provisioning/dashboards/json

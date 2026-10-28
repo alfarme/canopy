@@ -1,0 +1,49 @@
+# Notification routing.
+#
+# The default route sends everything to the Telegram contact point.
+#
+# repeat_interval started at 6h to match the decision engine's ALERT_COOLDOWN,
+# then moved to 24h in practice: these are all 24h-scale conditions, and a
+# sensor that has not reported in 200 hours does not become more interesting
+# every six. One nag per day per stale sensor until it reports again, resolves,
+# or is silenced.
+#
+# `stuck` is the exception. telegram-bot/__main__.py:_fetch_pending_alerts has
+# always filtered it out ("too frequent/low-signal for chat — visible in
+# Grafana instead"), so the engine wrote alert_events rows that were never
+# delivered. Migrating it as a *notifying* rule would reverse that decision and
+# start spamming the chat. Instead it keeps firing — visible in the Alerting UI,
+# which is where it was meant to be seen — routed through an always-on mute
+# timing so no message is ever sent. Deleting one line (mute_time_intervals)
+# turns notifications on if that ever becomes wanted.
+#
+# NOTE: this file replaces the whole policy tree on provisioning; there is no
+# merge. Editing the tree in the UI is disabled for provisioned policies.
+
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: telegram
+    group_by: [alertname, sensor_id]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 24h
+    routes:
+      - receiver: telegram
+        object_matchers:
+          - [kind, =, stuck]
+        group_by: [alertname, sensor_id]
+        mute_time_intervals:
+          - always
+
+muteTimes:
+  - orgId: 1
+    name: always
+    time_intervals:
+      # No day/month/weekday restriction plus a full-day window = matches every
+      # instant. (An empty interval also matches everything, but Grafana's
+      # validator is happier with an explicit one and it reads less like a bug.)
+      - times:
+          - start_time: "00:00"
+            end_time: "24:00"

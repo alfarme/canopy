@@ -1,0 +1,36 @@
+# Grafana contact point — the same Telegram bot/chat the telegram-bot service uses.
+#
+# Secrets come from env/grafana.env (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID — same
+# values as env/telegram.env; deliberately NOT GF_-prefixed, since Grafana also
+# reads GF_<SECTION>_<KEY> as a config override), untracked and written by
+# install.sh from the single root .env. $__env{} is the provisioning file
+# reader's substitution syntax — same as timescaledb.yaml's password.
+#
+# `uid` must be stable: re-provisioning matches on uid, and a changed one
+# creates a second contact point instead of updating this one.
+
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: telegram
+    receivers:
+      - uid: cp_telegram
+        type: telegram
+        settings:
+          # A prior version of this file hardcoded chatid as a literal
+          # instead of $__env{}, with a note that provisioning type-infers a
+          # numeric substituted value into a JSON number and rejects it. That
+          # was re-tested against this exact pinned version (Grafana
+          # 12.4.3), with both a small positive value and a realistic large
+          # negative group-chat id, and $__env{} provisioned cleanly both
+          # times — re-verify before trusting either finding if this ever
+          # breaks again, but don't reintroduce the hardcoded literal (it
+          # leaked a real chat id into git history once already).
+          bottoken: "$__env{TELEGRAM_BOT_TOKEN}"
+          chatid: "$__env{TELEGRAM_CHAT_ID}"
+          parse_mode: HTML
+          message: '{{ template "canopy.telegram.message" . }}'
+        # The decision engine had no concept of an alert *clearing*; Grafana
+        # does, and "sensor 9 is reporting again" is worth knowing.
+        disableResolveMessage: false

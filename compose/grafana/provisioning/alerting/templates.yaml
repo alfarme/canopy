@@ -1,0 +1,32 @@
+# Message template — deliberately mirrors telegram-bot/app/formatting.py's
+# format_alert() so a Grafana-sourced alert doesn't read as a different system:
+# emoji + bold kind, sensor line, message, faint provenance footer.
+#
+# Escaping: plant and sensor names are user-controlled and the contact point
+# uses parse_mode=HTML, so a plant called "Aloe & vera" would break Telegram's
+# parser. formatting.py calls html.escape(); Go templates have no equivalent,
+# hence the reReplaceAll chain in "cp.esc" (& first, or the entities get
+# double-escaped).
+
+apiVersion: 1
+
+templates:
+  - orgId: 1
+    name: canopy
+    template: |
+      {{ define "cp.esc" -}}
+      {{ reReplaceAll ">" "&gt;" (reReplaceAll "<" "&lt;" (reReplaceAll "&" "&amp;" .)) }}
+      {{- end }}
+
+      {{ define "cp.emoji" -}}
+      {{ if eq . "stale" }}🕐{{ else if eq . "low_battery" }}🔋{{ else if eq . "stuck" }}⚠️{{ else }}🔔{{ end }}
+      {{- end }}
+
+      {{ define "canopy.telegram.message" -}}
+      {{ range .Alerts -}}
+      {{ if eq .Status "resolved" }}✅ <b>Resolved: {{ template "cp.esc" .Labels.alertname }}</b>{{ else }}{{ template "cp.emoji" .Labels.kind }} <b>{{ template "cp.esc" .Labels.alertname }}</b>{{ end }}
+      📡 Sensor: {{ template "cp.esc" .Labels.sensor }}
+      {{ template "cp.esc" .Annotations.summary }}
+      <i>grafana · {{ .Labels.kind }}</i>
+      {{ end }}
+      {{- end }}

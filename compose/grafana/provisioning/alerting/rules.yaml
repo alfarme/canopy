@@ -1,0 +1,252 @@
+# Sensor-health alert rules, ported from decision-engine/app/engine.py.
+#
+# Query model (verified against this instance, Grafana 12.4.3): a Postgres
+# query with format=table and NO time column comes back as a `numeric-multi`
+# frame — every row becomes one alert instance, every string column becomes a
+# label, the single numeric column becomes the value. That means no Reduce
+# expression is needed; a Threshold expression applies directly to the query.
+# Adding a time column would silently turn these into time series and break the
+# per-sensor instances.
+#
+# Every rule anti-joins alert_silences so the telegram bot's /silence <sensor>
+# <kind> keeps working exactly as before — those rows were previously read by
+# decision-engine/app/queries.py:fetch_silenced_alerts.
+#
+# Thresholds mirror the engine's env defaults: STALE_HOURS=24, STUCK_HOURS=24,
+# BATTERY_LOW_PCT=15. Change them here AND in env/decision.env if they ever move.
+#
+# uids must stay stable — re-provisioning matches on uid, so changing one
+# duplicates the rule instead of updating it.
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: sensor-health
+    folder: Canopy
+    # These are all 24h-scale conditions; evaluating every 10m is plenty and
+    # keeps the hypertable scans off a 5m cadence.
+    interval: 10m
+    rules:
+
+      # ------------------------------------------------------------------ stale
+      - uid: cp_stale
+        title: Stale sensor
+        condition: B
+        for: 0m
+        labels:
+          kind: stale
+        annotations:
+          summary: 'No reading in {{ printf "%.0f" $values.A.Value }}h (threshold 24h).'
+        # Zero rows means zero active sensors, not a fault.
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: canopy_tsdb
+            model:
+              refId: A
+              datasource: { type: postgres, uid: canopy_tsdb }
+              format: table
+              rawQuery: true
+              # A sensor that has never reported gets age from the epoch, which
+              # fires — matching engine.is_stale's `latest_time is None -> True`.
+              rawSql: |
+                SELECT s.id::text AS sensor_id,
+                       l.label     AS sensor,
+                       s.kind      AS source,
+                       round(extract(epoch FROM (now() - coalesce(r.last_time, '1970-01-01Z')))
+                             / 3600.0, 2)::float8 AS age_hours
+                FROM sensors s
+                JOIN sensor_labels l ON l.sensor_id = s.id
+                LEFT JOIN LATERAL (
+                    SELECT max(b.time) AS last_time
+                    FROM bt_readings b
+                    WHERE b.sensor_id = s.id
+                ) r ON true
+                WHERE s.active
+                  AND NOT EXISTS (
+                      SELECT 1 FROM alert_silences x
+                      WHERE x.sensor_id = s.id AND x.kind = 'stale'
+                  )
+          - refId: B
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [24] }
+
+      # ----------------------------------------------------------- low_battery
+      - uid: cp_low_battery
+        title: Battery low — replace the cell
+        condition: B
+        for: 0m
+        labels:
+          kind: low_battery
+        annotations:
+          summary: 'Battery at {{ printf "%.0f" $values.A.Value }}% on the last two readings (threshold 25%).'
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: canopy_tsdb
+            model:
+              refId: A
+              datasource: { type: postgres, uid: canopy_tsdb }
+              format: table
+              rawQuery: true
+              # This rule is a fix as much as a port. `low_battery` has never
+              # been able to fire: bt_readings.battery is 100% NULL (the BLE
+              # collector doesn't populate it), so the engine's
+              # `latest["battery"]` was always None. This rule works once the
+              # collector writes the column.
+              #
+              # Also takes the newest *non-null* battery rather than the newest
+              # row's battery (which the engine used, and which can be NULL even
+              # when the previous row had a value).
+              rawSql: |
+                SELECT s.id::text AS sensor_id,
+                       l.label     AS sensor,
+                       s.kind      AS source,
+                       r.battery::float8 AS battery_pct
+                FROM sensors s
+                JOIN sensor_labels l ON l.sensor_id = s.id
+                JOIN LATERAL (
+                    -- Worst-case over a FULL DAY of non-null readings, so no single
+                    -- low sample can page anyone. The CR2032s in service are old
+                    -- stock: voltage sags under the load of a GATT connect and
+                    -- recovers at rest, and one sensor read 0%, 38% and 23% within
+                    -- an hour on 2026-07-28.
+                    --
+                    -- This was "the last two readings" while the collector ran once
+                    -- a day -- two readings that were inherently 24h apart. The
+                    -- collector now runs every two hours (better trend resolution
+                    -- on the dashboard), which would have shrunk the confirmation
+                    -- window from 24h to 2h and made an erratic cell page twelve
+                    -- times a day. Anchoring to the interval instead of a row count
+                    -- keeps the 24h semantics regardless of collection cadence.
+                    SELECT max(x.battery)::float8 AS battery,
+                           count(*)                AS samples
+                    FROM (
+                        SELECT time, battery FROM bt_readings
+                        WHERE sensor_id = s.id AND battery IS NOT NULL
+                          AND time > now() - interval '14 days'
+                    ) x
+                ) r ON true
+                WHERE s.active
+                  -- max() over the window means EVERY reading in it must be low to
+                  -- fire. Require enough of them that one bad sample cannot decide.
+                  --
+                  -- The 14d window / 2-sample floor is derived from the
+                  -- collector's cadence and MUST be rechecked whenever that
+                  -- cadence changes. This is the recurring trap in this rule:
+                  -- the floor is a row count, so it silently becomes
+                  -- unreachable -- and the rule silently dark -- the moment
+                  -- collection slows down. It has happened twice, at
+                  -- six-hourly and again here.
+                  --
+                  -- At 48-hourly collection there is ONE attempt per 48h and
+                  -- roughly half of GATT connects fail, so 14 days buys ~7
+                  -- attempts and ~3-4 successes. A floor of 2 is deliberately
+                  -- not a weakening: at this cadence two samples are guaranteed
+                  -- to sit at least 48h apart, where the old three could all
+                  -- land inside a single afternoon. Corroboration comes from
+                  -- the samples being independent, not from their count.
+                  --
+                  -- The long window is safe because max() means EVERY reading
+                  -- in it must be low to fire, and a CR2032 discharges
+                  -- monotonically -- a recovering cell clears the alert.
+                  AND r.samples >= 2
+                  AND NOT EXISTS (
+                      SELECT 1 FROM alert_silences y
+                      WHERE y.sensor_id = s.id AND y.kind = 'low_battery'
+                  )
+          - refId: B
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [25] }
+
+      # ------------------------------------------------------------------ stuck
+      # Muted by policy (see policies.yaml) — fires into the Alerting UI only,
+      # which is exactly where the bot's `kind != 'stuck'` filter already sent it.
+      - uid: cp_stuck
+        title: Stuck sensor value
+        condition: B
+        for: 0m
+        labels:
+          kind: stuck
+        annotations:
+          summary: 'Moisture unchanged for {{ printf "%.0f" $values.A.Value }}h.'
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: canopy_tsdb
+            model:
+              refId: A
+              datasource: { type: postgres, uid: canopy_tsdb }
+              format: table
+              rawQuery: true
+              # Port of engine.is_stuck: find the newest run of identical
+              # non-null moisture and measure its *duration*, not its sample
+              # count — a dry spell repeats readings for hours without the
+              # sensor being stuck. The 48h bound mirrors STUCK_LOOKBACK_HOURS
+              # (24 * 1.5 + 1); with no change inside it, `since` falls back to
+              # the oldest sample in the window, same as the engine's fallback.
+              rawSql: |
+                WITH r AS (
+                    SELECT b.sensor_id, b.time, b.moisture::float8 AS moisture
+                    FROM bt_readings b
+                    WHERE b.time > now() - interval '48 hours' AND b.moisture IS NOT NULL
+                ),
+                cur AS (
+                    SELECT DISTINCT ON (sensor_id) sensor_id, moisture
+                    FROM r ORDER BY sensor_id, time DESC
+                ),
+                chg AS (
+                    SELECT r.sensor_id, max(r.time) AS last_change
+                    FROM r JOIN cur c ON c.sensor_id = r.sensor_id AND r.moisture <> c.moisture
+                    GROUP BY r.sensor_id
+                ),
+                run AS (
+                    SELECT r.sensor_id, min(r.time) AS since
+                    FROM r LEFT JOIN chg ON chg.sensor_id = r.sensor_id
+                    WHERE r.time > coalesce(chg.last_change, '-infinity'::timestamptz)
+                    GROUP BY r.sensor_id
+                )
+                SELECT s.id::text AS sensor_id,
+                       l.label     AS sensor,
+                       s.kind      AS source,
+                       round(extract(epoch FROM (now() - run.since)) / 3600.0, 2)::float8
+                           AS held_hours
+                FROM sensors s
+                JOIN sensor_labels l ON l.sensor_id = s.id
+                JOIN run ON run.sensor_id = s.id
+                WHERE s.active
+                  AND NOT EXISTS (
+                      SELECT 1 FROM alert_silences x
+                      WHERE x.sensor_id = s.id AND x.kind = 'stuck'
+                  )
+          - refId: B
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [24] }

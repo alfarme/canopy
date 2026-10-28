@@ -1,0 +1,13 @@
+@import "./tokens.css";
+@import "./fonts.css";
+
+* { box-sizing: border-box; margin: 0; }
+html, body { background: var(--surface-0); color: var(--ink); }
+body { font-family: var(--font-ui); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

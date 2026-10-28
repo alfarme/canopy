@@ -1,0 +1,70 @@
+/* Canopy — theme tokens (design brief §2/§4). Themes swap values only;
+   components consume semantic names exclusively. */
+
+:root {
+  /* Light — "Greenhouse warm", latte edition: a warm tan rather than
+     near-white, so the dark evening photos don't punch holes in the page
+     (user-tuned 2026-07-23). */
+  --surface-0: #e2d3b4;
+  --surface-1: #ecdfc7;
+  --surface-veil: rgba(236, 223, 199, 0.95);
+  --ink: #3a3220;
+  --ink-soft: #64583e;
+  --ink-faint: #988a67;
+  --accent: #4a6741;
+  --warn: #b5502e;
+  --track: #d2c19c;
+  --range-band: #c1af86;
+  --dot-ring: #ecdfc7;
+  --tile-caption-ink: #fbf6ea;
+  --shadow-lift: 0 2px 10px rgba(60, 45, 20, 0.18);
+  --shadow-lift-hover: 0 6px 22px rgba(60, 45, 20, 0.26);
+  --accent-glow: none;
+
+  /* Photo treatment: the corpus is indoor evening shots — dark and heavily
+     warm/orange. Light theme lifts exposure and pulls the hue back toward
+     green so tiles sit with the bright page instead of punching holes in
+     it; both themes desaturate the orange cast a little. */
+  --photo-treat: brightness(1.06) contrast(0.96) saturate(0.8) sepia(0.22) hue-rotate(8deg);
+  --scrim-hi: rgba(20, 14, 5, 0.48);
+  --scrim-mid: rgba(20, 14, 5, 0.12);
+
+  /* Alerts board frame colors (severity 3 → 1) */
+  --sev-3: #bb3a26;
+  --sev-2: #d2822c;
+  --sev-1: #cfae2e;
+
+  --font-display: "Fraunces", serif;
+  --font-ui: "Work Sans", sans-serif;
+
+  --r-s: 4px; --r-m: 6px; --r-l: 8px; --r-pill: 999px;
+  --dur-quick: 200ms; --dur-move: 350ms; --dur-reveal: 450ms;
+  --ease: cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+[data-theme="dark"] {
+  /* Dark — "Nocturnal conservatory" */
+  --surface-0: #14140f;
+  --surface-1: #1c1c14;
+  --surface-veil: rgba(28, 28, 20, 0.93);
+  --ink: #f2e9d3;
+  --ink-soft: #b3a888;
+  --ink-faint: #7d7357;
+  --accent: #c99a3f;
+  --warn: #d9714a;
+  --track: #2c2a1e;
+  --range-band: #443f2a;
+  --dot-ring: #1c1c14;
+  --tile-caption-ink: #f2e9d3;
+  --shadow-lift: 0 2px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lift-hover: 0 6px 24px rgba(0, 0, 0, 0.6);
+  --accent-glow: 0 0 12px rgba(201, 154, 63, 0.35);
+
+  --photo-treat: saturate(0.85) hue-rotate(10deg);
+  --scrim-hi: rgba(20, 14, 5, 0.62);
+  --scrim-mid: rgba(20, 14, 5, 0.18);
+
+  --sev-3: #d9482f;
+  --sev-2: #e0913a;
+  --sev-1: #d9bc3c;
+}
